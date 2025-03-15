@@ -1,18 +1,27 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const nodemailer = require("nodemailer")
 require("dotenv").config();
 
 const app = express();
-
-const PORT = process.env.PORT || 5000;
-
 app.use(cors());
 app.use(express.json());
 
-const ADMIN_API_PREFIX = '/api/v1/admin'
-const UI_API_PREFIX = '/api/v1'
+app.use(function (req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET, POST, OPTIONS, PUT, PATCH, DELETE"
+  );
+  res.header(
+    "Access-Control-Allow-Headers",
+    "x-access-token, Origin, X-Requested-With, Content-Type, Accept"
+  );
+  next();
+});
 
+const PORT = process.env.PORT || 5000;
 // database connection
 
 const dbConnect = async () => {
@@ -27,22 +36,19 @@ dbConnect();
 
 // <--------- Schema for UI ---------->
 
-// <------ Users ------->
 const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-  },
-  email: {
-    type: String,
-    required: true,
-  },
-  password: {
-    type: String,
-    required: true,
-  },
-},{ timestamps: true });
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  name: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+}); 
 
+const otpSchema = new mongoose.Schema({
+  email: { type: String, required: true },
+  otp: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now, expires: 300 }, // OTP expires in 5 minutes
+});
 
 // <------- Schema ADMIN_PANEL -------->
 
@@ -107,70 +113,87 @@ const User = mongoose.model("User", userSchema);
 const Testimonial = mongoose.model('Testimonial', testimonialSchema)
 const Curriculum = mongoose.model('Curriculum', curriculumSchema)
 const Blog = mongoose.model('Blog', blogSchema);
+const OTP = mongoose.model("OTP", otpSchema);
 
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.Nodemailer_Username, 
+    pass: process.env.Nodemailer_Password,
+  },
+});
 
 
 // <--------- ROUTES UI ---------->
 
 //  Register 
-app.post(`${UI_API_PREFIX}/register`, async (req, res) => {
+app.post("/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-
-    if(!name || !email || !password) {
-      return res.status(204).json({message:'empty data received'})
-    }
-
-    const existingUser = await User.findOne({ email });
-
-    if (existingUser) {
-      console.log(`user already exists`);
-      return res.status(409).json({ message: `user already exists` });
-    }
-
-    const newUser = User({
-      name,
-      email,
-      password,
-    });
+    const { email, password, name } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ email, password: hashedPassword, name });
     await newUser.save();
-    res.status(200).json({ message: `user registerd successfully` });
-  } catch (error) {
-    res.status(500).json({ message: `Internal server error` });
+    res.status(201).send("User registered successfully");
+  } catch (err) {
+    res.status(400).send("Error registering user: " + err.message);
   }
 });
 
-//  Login
-app.post(`${UI_API_PREFIX}/login`, async(req, res) => {
+
+//login
+app.post("/login", async (req, res) => {
   try {
-    const {email, password} = req.body;
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(200).send("User not found");
 
-    if(!email || !password) {
-      return res.status(204).json({message:'empty data received'})
-    }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).send("Invalid credentials");
 
-    const validateUser = await User.findOne({email})
-
-    // console.log(validateUser)
-
-    if(!validateUser) {
-      return res.status(404).json({message:'No user found'})
-    }
-
-    if(validateUser.password !== password) {
-      return res.status(401).json({message:'invalid password'});
-    }
-
-    res.status(200).json({message:'user authenticate', validateUser})
-
-  } catch (error) {
-    res.status(500).json({message:'problem validating user'});
+    res.status(200).send("Login successful");
+  } catch (err) {
+    res.status(500).send("Error logging in: " + err.message);
   }
-  
-})
+});
+
+app.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).send("User not found");
+
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const newOtp = new OTP({ email, otp });
+    await newOtp.save();
+
+    await transporter.sendMail({
+      from: "support@gmail.com",
+      to: email,
+      subject: "Password Reset OTP",
+      text: `Your OTP is ${otp}`,
+    });
+
+    res.status(200).send({message:"OTP sent to email",otp:otp});
+  } catch (err) {
+    res.status(500).send("Error sending OTP: " + err.message);
+  }
+});
+
+app.post("/reset-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await User.updateOne({ email }, { password: hashedPassword });
+
+    res.status(200).send("Password reset successful");
+  } catch (err) {
+    res.status(500).send("Error resetting password: " + err.message);
+  }
+});
 
 // get testimonial
-app.get(`${UI_API_PREFIX}/testimonial`, async(req,res) => {
+app.get(`/testimonial`, async(req,res) => {
   try {
     const testimonial = await Testimonial.find();
     res.status(200).json({message:'testimonial send successfull', testimonial});
@@ -180,7 +203,7 @@ app.get(`${UI_API_PREFIX}/testimonial`, async(req,res) => {
 })
 
 // get curriculum
-app.get(`${UI_API_PREFIX}/curriculum`, async(req, res) => {
+app.get(`/curriculum`, async(req, res) => {
   try {
     const curriculum = await Curriculum.find();
     res.status(200).json({message:'data received successfully', curriculum});
@@ -191,7 +214,7 @@ app.get(`${UI_API_PREFIX}/curriculum`, async(req, res) => {
 })
 
 // get blog
-app.get(`${UI_API_PREFIX}/blogs`, async(req, res) => {
+app.get(`/blogs`, async(req, res) => {
   try {
     const blogs = await Blog.find();
     res.status(200).json({message:'data fetch successfull', blogs});
@@ -205,7 +228,7 @@ app.get(`${UI_API_PREFIX}/blogs`, async(req, res) => {
 // <------- ROUTES ADMIN PANEL -------->
 
 //  User Data save
-app.get(`${ADMIN_API_PREFIX}/users`, async(req, res) => {
+app.get(`/admin/users`, async(req, res) => {
   try {
       const users = await User.find();
       res.status(200).json({message:'data fetch succesfully',users})
@@ -215,7 +238,7 @@ app.get(`${ADMIN_API_PREFIX}/users`, async(req, res) => {
 })
 
 // Delete User 
-app.delete(`${ADMIN_API_PREFIX}/users/:id`, async(req, res) => {
+app.delete(`/admin/users/:id`, async(req, res) => {
   try {
     const {id} = req.params;
     console.log(id);
@@ -232,7 +255,7 @@ app.delete(`${ADMIN_API_PREFIX}/users/:id`, async(req, res) => {
 })
 
 // Add Testimonials save in db 
-app.post(`${ADMIN_API_PREFIX}/addTestimonials`, async(req, res) => {
+app.post(`/admin/addTestimonials`, async(req, res) => {
   try {
     const {name,achievement,description,course,image} = req.body;
 
@@ -255,7 +278,7 @@ app.post(`${ADMIN_API_PREFIX}/addTestimonials`, async(req, res) => {
 })
 
 // Get Testimonial 
-app.get(`${ADMIN_API_PREFIX}/testimonials`, async(req, res) => {
+app.get(`/admin/testimonials`, async(req, res) => {
   try {
     const testimonials = await Testimonial.find();
     res.status(200).json({message:'testimonial data fetch successfull', testimonials});
@@ -265,7 +288,7 @@ app.get(`${ADMIN_API_PREFIX}/testimonials`, async(req, res) => {
 })
 
 // Delete testimonial
-app.delete(`${ADMIN_API_PREFIX}/testimonials/:id`, async(req, res) => {
+app.delete(`/admin/testimonials/:id`, async(req, res) => {
   try {
     const {id} = req.params;
     const deletedItem = await Testimonial.findByIdAndDelete(id);
@@ -280,7 +303,7 @@ app.delete(`${ADMIN_API_PREFIX}/testimonials/:id`, async(req, res) => {
 })
 
 // add curruculum
-app.post(`${ADMIN_API_PREFIX}/addCurriculum`, async(req,res) => {
+app.post(`/admin/addCurriculum`, async(req,res) => {
 
   try {
     const {heading, subHeading, keyPoints} = req.body; 
@@ -301,7 +324,7 @@ app.post(`${ADMIN_API_PREFIX}/addCurriculum`, async(req,res) => {
 })
 
 //get curriculum
-app.get(`${ADMIN_API_PREFIX}/curriculum`, async(req, res) => {
+app.get(`/admin/curriculum`, async(req, res) => {
   try {
     const curriculum = await Curriculum.find();
     res.status(200).json({message:'data fetch successfully',curriculum});
@@ -312,7 +335,7 @@ app.get(`${ADMIN_API_PREFIX}/curriculum`, async(req, res) => {
 })
 
 // delete curriculum
-app.delete(`${ADMIN_API_PREFIX}/curriculum/:id`, async(req, res) => {
+app.delete(`/admin/curriculum/:id`, async(req, res) => {
   try {
     const {id} = req.params
     const deleteCurriculum = await Curriculum.findByIdAndDelete(id);
@@ -324,7 +347,7 @@ app.delete(`${ADMIN_API_PREFIX}/curriculum/:id`, async(req, res) => {
 })
 
 // add blog
-app.post(`${ADMIN_API_PREFIX}/addBlog`, async(req,res) => {
+app.post(`/admin/addBlog`, async(req,res) => {
   try {
     const {heading, description, image} = req.body
     const newBlog = new Blog({
@@ -341,7 +364,7 @@ app.post(`${ADMIN_API_PREFIX}/addBlog`, async(req,res) => {
 })
 
 // get blog
-app.get(`${ADMIN_API_PREFIX}/blogs`, async(req, res) => {
+app.get(`/admin/blogs`, async(req, res) => {
   try {
     const blogs = await Blog.find(); 
     res.status(200).json({message:'data send successfully', blogs});
@@ -351,7 +374,7 @@ app.get(`${ADMIN_API_PREFIX}/blogs`, async(req, res) => {
 })
 
 // delete blog
-app.delete(`${ADMIN_API_PREFIX}/blogs/:id`, async(req,res) => {
+app.delete(`/admin/blogs/:id`, async(req,res) => {
   try {
     const {id} = req.params;
     const deleteBlog = await Blog.findByIdAndDelete(id);
