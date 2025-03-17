@@ -107,6 +107,33 @@ const blogSchema = new mongoose.Schema({
   }
 },{timestamps:true})
 
+const courseSchema = new mongoose.Schema({
+  title:{
+    type: String,
+    required: true
+  },
+  description:{
+    type: String,
+    required: true
+  },
+  duration:{
+    type: String,
+    required: true
+  },
+  price:{
+    type: String,
+    required: true
+  },
+  image:{
+    type: String,
+    required: true
+  },
+  courseLevel: {
+    type: String,
+    required:true
+  }
+},{timestamps:true});
+
 // <--------   Models  ---------->
 
 const User = mongoose.model("User", userSchema);
@@ -114,6 +141,7 @@ const Testimonial = mongoose.model('Testimonial', testimonialSchema)
 const Curriculum = mongoose.model('Curriculum', curriculumSchema)
 const Blog = mongoose.model('Blog', blogSchema);
 const OTP = mongoose.model("OTP", otpSchema);
+const Course = mongoose.model("Course", courseSchema);
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -220,6 +248,16 @@ app.get(`/blogs`, async(req, res) => {
     res.status(200).json({message:'data fetch successfull', blogs});
   } catch (error) {
     return res.status(500).json({message:'there was problem while getting data'});
+  }
+})
+
+// get Course
+app.get(`/courses`, async(req,res) => {
+  try {
+    const courses = await Course.find();
+    res.status(200).json({message:`data fetch successfully`, courses});
+  } catch (error) {
+    return res.status(500).json({message:`error while fetching data`});
   }
 })
 
@@ -385,6 +423,48 @@ app.delete(`/admin/blogs/:id`, async(req,res) => {
 
 })
 
+// add courses
+app.post(`/admin/addCourses`, async(req, res) => {
+  try {
+    const {title, description, duration, price, image, courseLevel} = req.body;
+
+    const newCourse = new Course({
+      title,
+      description,
+      duration,
+      price,
+      image,
+      courseLevel
+    });
+    await newCourse.save();
+    res.status(200).json({message:'data save successfully', newCourse});
+  } catch (error) {
+    res.status(500).json({message:'problem while saving data'});
+  }
+  
+
+})
+
+// get course
+app.get(`/admin/course`, async(req, res) => {
+  try {
+    const courses = await Course.find();
+    res.status(200).json({message:'data send successfully', courses});
+  } catch (error) {
+    return res.status(500).json({message:'problem while sending data'});
+  }
+})
+
+// delete course
+app.delete(`/admin/course/:id`, async(req, res) => {
+  try {
+    const {id} = req.params;
+    const deleteCourse = await Course.findByIdAndDelete(id);
+    res.status(200).status({message:'course delete successfully', deleteCourse});
+  } catch (error) {
+    return res.status(500).json({message:'problem while deleting course'});
+  }
+})
 
 app.listen(PORT, () => {
   console.log(`server is listening on ${PORT}`);
