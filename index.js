@@ -129,6 +129,10 @@ const courseSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    curricullum: {
+      type: [String],
+      required: true,
+    },
     duration: {
       type: String,
       required: true,
@@ -422,7 +426,6 @@ app.put(`/admin/testimonials/:id`, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, achievement, description, image } = req.body;
-    console.log(name, achievement, description,image)
 
     const testimonialExists = await Testimonial.findById(id);
     if (!testimonialExists) {
@@ -493,7 +496,6 @@ app.delete(`/admin/curriculum/:id`, async (req, res) => {
 app.put(`/admin/curriculum/:id`, async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(id)
     const { heading, subHeading, keyPoints } = req.body;
     const updatedUser = await Curriculum.findByIdAndUpdate(
       id,
@@ -568,7 +570,7 @@ app.put(`/admin/blogs/:id`, async (req, res) => {
 // add courses
 app.post(`/admin/addCourses`, async (req, res) => {
   try {
-    const { title, description, duration, price, image, courseLevel } =
+    const { title, description, curricullum, duration, price, image, courseLevel } =
       req.body;
 
     const newCourse = new Course({
@@ -578,6 +580,7 @@ app.post(`/admin/addCourses`, async (req, res) => {
       price,
       image,
       courseLevel,
+      curricullum,
     });
     await newCourse.save();
     res.status(200).json({ message: "data save successfully", newCourse });
