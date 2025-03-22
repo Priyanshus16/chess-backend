@@ -3,11 +3,13 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
 
 app.use(function (req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
@@ -37,15 +39,39 @@ dbConnect();
 
 // <--------- Schema for UI ---------->
 
-const userSchema = new mongoose.Schema(
-  {
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    name: { type: String, required: true },
-    source: { type: String, required: true, enum: ["website", "admin"] },
-  },
-  { timestamps: true }
-);
+  const PurchasedCourseSchema = new mongoose.Schema({
+    courseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course", 
+      required: true,
+    },
+    purchaseDate: {
+      type: Date,
+      default: Date.now,
+    },
+    // paymentStatus: {
+    //   type: String,
+    //   enum: ["Pending", "Success", "Failed"],
+    //   default: "Pending",
+    // },
+    // transactionId: {
+    //   type: String,
+    //   required: true,
+    // },
+  });
+
+  const userSchema = new mongoose.Schema(
+    {
+      email: { type: String, required: true, unique: true },
+      password: { type: String, required: true },
+      name: { type: String, required: true },
+      source: { type: String, required: true, enum: ["website", "admin"] },
+      purchasedCourses: [PurchasedCourseSchema],
+    },
+    { timestamps: true }
+  );
+
+
 
 const otpSchema = new mongoose.Schema({
   email: { type: String, required: true },
@@ -149,6 +175,14 @@ const courseSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    video: {
+      type: String,
+      required: true,
+    },
+    videoName: {
+      type: String,
+      required: true, 
+    },
   },
   { timestamps: true }
 );
@@ -210,9 +244,20 @@ app.post("/login", async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).send("Invalid credentials");
 
-    res.status(200).send("Login successful");
+    const token = jwt.sign({id: user._id}, process.env.JWT_SECRET_KEY, {expiresIn: "1h"});
+
+    res.status(200).json({message:"Login successful", token, user});
   } catch (err) {
-    res.status(500).send("Error logging in: " + err.message);
+    res.status(500).json({message:"Error logging in"});
+  }
+});
+
+app.get(`/users`, async (req, res) => {
+  try {
+    const users = await User.find();
+    res.status(200).json({ message: "data fetch succesfully", users });
+  } catch (error) {
+    res.status(500).json({ message: "error while getting data" });
   }
 });
 
@@ -297,6 +342,33 @@ app.get(`/courses`, async (req, res) => {
     res.status(200).json({ message: `data fetch successfully`, courses });
   } catch (error) {
     return res.status(500).json({ message: `error while fetching data` });
+  }
+});
+
+// course enroll
+app.post("/enroll", async (req, res) => {
+  try {
+    const { userId, courseId } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Check if the course is already purchased
+    if (user.purchasedCourses.some((c) => c.courseId.toString() === courseId)) {
+      return res.status(400).json({ message: "Already enrolled in this course" });
+    }
+
+    // Add course to purchasedCourses
+    user.purchasedCourses.push({
+      courseId,
+      // transactionId: `txn_${Date.now()}`, // Generate a unique transaction ID
+      // paymentStatus: "Success",
+    });
+
+    await user.save();
+    res.json({ message: "Course enrolled successfully!", purchasedCourses: user.purchasedCourses });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
   }
 });
 
@@ -570,7 +642,7 @@ app.put(`/admin/blogs/:id`, async (req, res) => {
 // add courses
 app.post(`/admin/addCourses`, async (req, res) => {
   try {
-    const { title, description, curricullum, duration, price, image, courseLevel } =
+    const { title, description, curricullum, duration, price, image, courseLevel, video, videoName } =
       req.body;
 
     const newCourse = new Course({
@@ -581,6 +653,8 @@ app.post(`/admin/addCourses`, async (req, res) => {
       image,
       courseLevel,
       curricullum,
+      video,
+      videoName,
     });
     await newCourse.save();
     res.status(200).json({ message: "data save successfully", newCourse });
