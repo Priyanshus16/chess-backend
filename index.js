@@ -65,13 +65,11 @@ dbConnect();
       email: { type: String, required: true, unique: true },
       password: { type: String, required: true },
       name: { type: String, required: true },
-      source: { type: String, required: true, enum: ["website", "admin"] },
+      source: { type: String, required: true, enum: ["user", "admin"] },
       purchasedCourses: [PurchasedCourseSchema],
     },
     { timestamps: true }
   );
-
-
 
 const otpSchema = new mongoose.Schema({
   email: { type: String, required: true },
@@ -378,10 +376,45 @@ app.post("/enroll", async (req, res) => {
 app.post("/admin/addUser", async (req, res) => {
   try {
     const { name, email, password } = req.body;
-    console.log(name,email,password);
     if (!name || !email || !password) {
       return res.status(404).json({ message: "user details not found" });
     }
+
+    const userExists = await User.find({email});
+    if(userExists.length > 0) {
+      return res.status(409).json({message: "User already exists"});
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+      source: "user",
+    });
+    await newUser.save();
+    res.status(200).json({ message: "user save successfully", newUser });
+  } catch (error) {
+    console.error("Error while saving data:", error);
+    return res.status(500).json({ message: "problem while saving data" });
+  }
+});
+
+// add admin by admin
+
+app.post("/admin/addAdmin", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(404).json({ message: "user details not found" });
+    }
+
+    const userExists = await User.find({email});
+    if(userExists.length > 0) {
+      return res.status(409).json({message: "User already exists"});
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new User({
@@ -393,6 +426,7 @@ app.post("/admin/addUser", async (req, res) => {
     await newUser.save();
     res.status(200).json({ message: "user save successfully", newUser });
   } catch (error) {
+    
     return res.status(500).json({ message: "problem while saving data" });
   }
 });
