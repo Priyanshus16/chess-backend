@@ -120,6 +120,21 @@ const testimonialVideoSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// testimonial image
+const testimonialImageSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true, 
+    },
+    image: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
 // curriculum
 const curriculumSchema = new mongoose.Schema(
   {
@@ -208,6 +223,7 @@ const Blog = mongoose.model("Blog", blogSchema);
 const OTP = mongoose.model("OTP", otpSchema);
 const Course = mongoose.model("Course", courseSchema);
 const TestimonialVideo = mongoose.model("TestimonialVideo", testimonialVideoSchema);
+const TestimonialImage = mongoose.model("TestimonialImage", testimonialImageSchema);
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -340,6 +356,20 @@ app.get(`/testimonial`, async (req, res) => {
     res
       .status(200)
       .json({ message: "testimonial send successfull", testimonial, testimonialVideo });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "there was problem while fetching testimonial" });
+  }
+});
+
+// get testimonial image
+app.get(`/testimonialImage`, async (req, res) => {
+  try {
+    const testimonialImage = await TestimonialImage.find();
+    res
+      .status(200)
+      .json({ message: "testimonial send successfull", testimonialImage });
   } catch (error) {
     return res
       .status(500)
@@ -617,7 +647,7 @@ app.post(`/admin/addTestimonialVideo`, async (req, res) => {
   }
 });
 
-// get testimonial
+// get testimonial Video
 app.get(`/admin/testimonialVideo`, async (req, res) => {
   try {
     const testimonialVideo = await TestimonialVideo.find();
@@ -631,11 +661,62 @@ app.get(`/admin/testimonialVideo`, async (req, res) => {
   }
 });
 
-// delete testimonial
+// delete testimonial video
 app.delete(`/admin/testimonialVideo/:id`, async (req, res) => {
   try {
     const { id } = req.params;
     const deletedItem = await TestimonialVideo.findByIdAndDelete(id);
+    if (!deletedItem) {
+      res.status(404).json({ message: "user not found" });
+    }
+
+    res.status(200).json({ message: "user delete successfully", deletedItem });
+  } catch (error) {
+    res.status(500).json({ message: "error while deleting", error });
+  }
+});
+
+// add testimonial image
+app.post(`/admin/addTestimonialImage`, async (req, res) => {
+  try {
+    const { name, image } = req.body;
+
+    if (!name  || !image) {
+      return res.status(204).json({ message: "empty data received" });
+    }
+
+    const newtestimonialImage = new TestimonialImage({
+      name,
+      image,
+    });
+    await newtestimonialImage.save();
+    res.status(200).json({ message: "testimonial data send successfully" });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "there was problem while saving data" });
+  }
+});
+
+// get testimonial image
+app.get(`/admin/testimonialImage`, async (req, res) => {
+  try {
+    const testimonialImage = await TestimonialImage.find();
+    res
+      .status(200)
+      .json({ message: "testimonial data fetch successfull", testimonialImage });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "problem while fetching testimonial data" });
+  }
+});
+
+// delete testimonial image
+app.delete(`/admin/testimonialImage/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedItem = await TestimonialImage.findByIdAndDelete(id);
     if (!deletedItem) {
       res.status(404).json({ message: "user not found" });
     }
