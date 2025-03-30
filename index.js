@@ -10,7 +10,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
 app.use(function (req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
   res.header(
@@ -39,37 +38,37 @@ dbConnect();
 
 // <--------- Schema for UI ---------->
 
-  const PurchasedCourseSchema = new mongoose.Schema({
-    courseId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Course", 
-      required: true,
-    },
-    purchaseDate: {
-      type: Date,
-      default: Date.now,
-    },
-    // paymentStatus: {
-    //   type: String,
-    //   enum: ["Pending", "Success", "Failed"],
-    //   default: "Pending",
-    // },
-    // transactionId: {
-    //   type: String,
-    //   required: true,
-    // },
-  });
+const PurchasedCourseSchema = new mongoose.Schema({
+  courseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Course",
+    required: true,
+  },
+  purchaseDate: {
+    type: Date,
+    default: Date.now,
+  },
+  // paymentStatus: {
+  //   type: String,
+  //   enum: ["Pending", "Success", "Failed"],
+  //   default: "Pending",
+  // },
+  // transactionId: {
+  //   type: String,
+  //   required: true,
+  // },
+});
 
-  const userSchema = new mongoose.Schema(
-    {
-      email: { type: String, required: true, unique: true },
-      password: { type: String, required: true },
-      name: { type: String, required: true },
-      source: { type: String, required: true, enum: ["user", "admin"] },
-      purchasedCourses: [PurchasedCourseSchema],
-    },
-    { timestamps: true }
-  );
+const userSchema = new mongoose.Schema(
+  {
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    name: { type: String, required: true },
+    source: { type: String, required: true, enum: ["user", "admin"] },
+    purchasedCourses: [PurchasedCourseSchema],
+  },
+  { timestamps: true }
+);
 
 const otpSchema = new mongoose.Schema({
   email: { type: String, required: true },
@@ -99,6 +98,21 @@ const testimonialSchema = new mongoose.Schema(
       required: true,
     },
     image: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+// testimonial video
+const testimonialVideoSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true, 
+    },
+    video: {
       type: String,
       required: true,
     },
@@ -179,7 +193,7 @@ const courseSchema = new mongoose.Schema(
     },
     videoName: {
       type: String,
-      required: true, 
+      required: true,
     },
   },
   { timestamps: true }
@@ -193,6 +207,7 @@ const Curriculum = mongoose.model("Curriculum", curriculumSchema);
 const Blog = mongoose.model("Blog", blogSchema);
 const OTP = mongoose.model("OTP", otpSchema);
 const Course = mongoose.model("Course", courseSchema);
+const TestimonialVideo = mongoose.model("TestimonialVideo", testimonialVideoSchema);
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -200,6 +215,26 @@ const transporter = nodemailer.createTransport({
     user: process.env.Nodemailer_Username,
     pass: process.env.Nodemailer_Password,
   },
+});
+
+// <--------- Nodemailer ---------->
+app.post("/send-email", async (req, res) => {
+  const { name, email, contact, city, ageGroup, language } = req.body;
+
+  const mailOptions = {
+    from: process.env.Nodemailer_Username,
+    to: "Masterchessclasses@gmail.com",
+    subject: "New Demo Class Booking Request",
+    text: `Name: ${name}\nEmail: ${email}\nContact: ${contact}\nCity: ${city}\nAge Group: ${ageGroup}\nPreferred Language: ${language}`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: "Email sent successfully!" });
+  } catch (error) {
+    console.error("Error sending email:", error); 
+    res.status(500).json({ error: "Email sending failed!" });
+  }
 });
 
 // <--------- ROUTES UI ---------->
@@ -237,16 +272,18 @@ app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({message:"User not found"});
+    if (!user) return res.status(401).json({ message: "User not found" });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).send("Invalid credentials");
 
-    const token = jwt.sign({id: user._id}, process.env.JWT_SECRET_KEY, {expiresIn: "1h"});
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET_KEY, {
+      expiresIn: "1h",
+    });
 
-    res.status(200).json({message:"Login successful", token, user});
+    res.status(200).json({ message: "Login successful", token, user });
   } catch (err) {
-    res.status(500).json({message:"Error logging in"});
+    res.status(500).json({ message: "Error logging in" });
   }
 });
 
@@ -299,9 +336,10 @@ app.post("/reset-password", async (req, res) => {
 app.get(`/testimonial`, async (req, res) => {
   try {
     const testimonial = await Testimonial.find();
+    const testimonialVideo = await TestimonialVideo.find();
     res
       .status(200)
-      .json({ message: "testimonial send successfull", testimonial });
+      .json({ message: "testimonial send successfull", testimonial, testimonialVideo });
   } catch (error) {
     return res
       .status(500)
@@ -353,7 +391,9 @@ app.post("/enroll", async (req, res) => {
 
     // Check if the course is already purchased
     if (user.purchasedCourses.some((c) => c.courseId.toString() === courseId)) {
-      return res.status(400).json({ message: "Already enrolled in this course" });
+      return res
+        .status(400)
+        .json({ message: "Already enrolled in this course" });
     }
 
     // Add course to purchasedCourses
@@ -364,7 +404,10 @@ app.post("/enroll", async (req, res) => {
     });
 
     await user.save();
-    res.json({ message: "Course enrolled successfully!", purchasedCourses: user.purchasedCourses });
+    res.json({
+      message: "Course enrolled successfully!",
+      purchasedCourses: user.purchasedCourses,
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
   }
@@ -380,9 +423,9 @@ app.post("/admin/addUser", async (req, res) => {
       return res.status(404).json({ message: "user details not found" });
     }
 
-    const userExists = await User.find({email});
-    if(userExists.length > 0) {
-      return res.status(409).json({message: "User already exists"});
+    const userExists = await User.find({ email });
+    if (userExists.length > 0) {
+      return res.status(409).json({ message: "User already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -410,9 +453,9 @@ app.post("/admin/addAdmin", async (req, res) => {
       return res.status(404).json({ message: "user details not found" });
     }
 
-    const userExists = await User.find({email});
-    if(userExists.length > 0) {
-      return res.status(409).json({message: "User already exists"});
+    const userExists = await User.find({ email });
+    if (userExists.length > 0) {
+      return res.status(409).json({ message: "User already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -426,7 +469,6 @@ app.post("/admin/addAdmin", async (req, res) => {
     await newUser.save();
     res.status(200).json({ message: "user save successfully", newUser });
   } catch (error) {
-    
     return res.status(500).json({ message: "problem while saving data" });
   }
 });
@@ -544,10 +586,63 @@ app.put(`/admin/testimonials/:id`, async (req, res) => {
       { new: true }
     );
 
-    res.status(200).json({ message: "Testimonial updated", updatedTestimonial });
+    res
+      .status(200)
+      .json({ message: "Testimonial updated", updatedTestimonial });
   } catch (error) {
     console.error("Error updating testimonial:", error);
     res.status(500).json({ message: "Error updating testimonial", error });
+  }
+});
+
+// add testimonial video
+app.post(`/admin/addTestimonialVideo`, async (req, res) => {
+  try {
+    const { name, video } = req.body;
+
+    if (!name  || !video) {
+      return res.status(204).json({ message: "empty data received" });
+    }
+
+    const newtestimonialVideo = new TestimonialVideo({
+      name,
+      video,
+    });
+    await newtestimonialVideo.save();
+    res.status(200).json({ message: "testimonial data send successfully" });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "there was problem while saving data" });
+  }
+});
+
+// get testimonial
+app.get(`/admin/testimonialVideo`, async (req, res) => {
+  try {
+    const testimonialVideo = await TestimonialVideo.find();
+    res
+      .status(200)
+      .json({ message: "testimonial data fetch successfull", testimonialVideo });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "problem while fetching testimonial data" });
+  }
+});
+
+// delete testimonial
+app.delete(`/admin/testimonialVideo/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedItem = await TestimonialVideo.findByIdAndDelete(id);
+    if (!deletedItem) {
+      res.status(404).json({ message: "user not found" });
+    }
+
+    res.status(200).json({ message: "user delete successfully", deletedItem });
+  } catch (error) {
+    res.status(500).json({ message: "error while deleting", error });
   }
 });
 
@@ -657,11 +752,11 @@ app.delete(`/admin/blogs/:id`, async (req, res) => {
 app.put(`/admin/blogs/:id`, async (req, res) => {
   try {
     const { id } = req.params;
-    const { heading, description, image } = req.body;
+    const { heading, description } = req.body;
 
-    const updatedBlog = await Testimonial.findByIdAndUpdate(
+    const updatedBlog = await Blog.findByIdAndUpdate(
       id,
-      { heading, description, image },
+      { heading, description },
       { new: true }
     );
 
@@ -672,12 +767,20 @@ app.put(`/admin/blogs/:id`, async (req, res) => {
   }
 });
 
-
 // add courses
 app.post(`/admin/addCourses`, async (req, res) => {
   try {
-    const { title, description, curricullum, duration, price, image, courseLevel, video, videoName } =
-      req.body;
+    const {
+      title,
+      description,
+      curricullum,
+      duration,
+      price,
+      image,
+      courseLevel,
+      video,
+      videoName,
+    } = req.body;
 
     const newCourse = new Course({
       title,
@@ -717,6 +820,25 @@ app.delete(`/admin/course/:id`, async (req, res) => {
       .status({ message: "course delete successfully", deleteCourse });
   } catch (error) {
     return res.status(500).json({ message: "problem while deleting course" });
+  }
+});
+
+// edit course
+app.put(`/admin/course/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, duration, price, courseLevel } = req.body;
+
+    const updatedCourse = await Course.findByIdAndUpdate(
+      id,
+      { title, description, duration, price, courseLevel },
+      { new: true }
+    );
+
+    res.status(200).json({ message: "Course updated", updatedCourse });
+  } catch (error) {
+    console.error("Error updating Course:", error);
+    res.status(500).json({ message: "Error updating Course", error });
   }
 });
 
