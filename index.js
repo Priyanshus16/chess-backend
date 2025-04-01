@@ -8,7 +8,8 @@ require("dotenv").config();
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "200mb" }));
+app.use(express.urlencoded({ limit: "200mb", extended: true }));
 
 app.use(function (req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
@@ -70,12 +71,6 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const otpSchema = new mongoose.Schema({
-  email: { type: String, required: true },
-  otp: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now, expires: 300 }, // OTP expires in 5 minutes
-});
-
 // <------- Schema ADMIN_PANEL -------->
 
 // testimonial
@@ -110,7 +105,7 @@ const testimonialVideoSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: true, 
+      required: true,
     },
     video: {
       type: String,
@@ -125,7 +120,7 @@ const testimonialImageSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: true, 
+      required: true,
     },
     image: {
       type: String,
@@ -214,16 +209,100 @@ const courseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const bannerSchema = new mongoose.Schema(
+  {
+    heading: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    image: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+const BeginnerBannerSchema = new mongoose.Schema(
+  {
+    heading: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    image: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+const IntermediateBannerSchema = new mongoose.Schema(
+  {
+    heading: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    image: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+const AdvanceBannerSchema = new mongoose.Schema(
+  {
+    heading: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    image: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
 // <--------   Models  ---------->
 
 const User = mongoose.model("User", userSchema);
 const Testimonial = mongoose.model("Testimonial", testimonialSchema);
 const Curriculum = mongoose.model("Curriculum", curriculumSchema);
 const Blog = mongoose.model("Blog", blogSchema);
-const OTP = mongoose.model("OTP", otpSchema);
 const Course = mongoose.model("Course", courseSchema);
-const TestimonialVideo = mongoose.model("TestimonialVideo", testimonialVideoSchema);
-const TestimonialImage = mongoose.model("TestimonialImage", testimonialImageSchema);
+const Banner = mongoose.model("Banner", bannerSchema);
+const TestimonialVideo = mongoose.model(
+  "TestimonialVideo",
+  testimonialVideoSchema
+);
+const TestimonialImage = mongoose.model(
+  "TestimonialImage",
+  testimonialImageSchema
+);
+const BeginnerBanner = mongoose.model("BeginnerBanner", BeginnerBannerSchema);
+const IntermediateBanner = mongoose.model(
+  "IntermediateBanner",
+  IntermediateBannerSchema
+);
+const AdvanceBanner = mongoose.model("AdvanceBanner", AdvanceBannerSchema);
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -235,20 +314,20 @@ const transporter = nodemailer.createTransport({
 
 // <--------- Nodemailer ---------->
 app.post("/send-email", async (req, res) => {
-  const { name, email, contact, city, ageGroup, language } = req.body;
+  const { name, email, contact, city, ageGroup, language, device } = req.body;
 
   const mailOptions = {
     from: process.env.Nodemailer_Username,
     to: "Masterchessclasses@gmail.com",
     subject: "New Demo Class Booking Request",
-    text: `Name: ${name}\nEmail: ${email}\nContact: ${contact}\nCity: ${city}\nAge Group: ${ageGroup}\nPreferred Language: ${language}`,
+    text: `Name: ${name}\nEmail: ${email}\nContact: ${contact}\nCity: ${city}\nAge Group: ${ageGroup}\nPreferred Language: ${language}\nDevice: ${device}`,
   };
 
   try {
     await transporter.sendMail(mailOptions);
     res.status(200).json({ message: "Email sent successfully!" });
   } catch (error) {
-    console.error("Error sending email:", error); 
+    console.error("Error sending email:", error);
     res.status(500).json({ error: "Email sending failed!" });
   }
 });
@@ -283,7 +362,7 @@ app.post("/register", async (req, res) => {
   }
 });
 
-//login
+//l ogin
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -303,6 +382,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
+// get users
 app.get(`/users`, async (req, res) => {
   try {
     const users = await User.find();
@@ -312,50 +392,16 @@ app.get(`/users`, async (req, res) => {
   }
 });
 
-app.post("/forgot-password", async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).send("User not found");
-
-    const otp = crypto.randomInt(100000, 999999).toString();
-    const newOtp = new OTP({ email, otp });
-    await newOtp.save();
-
-    await transporter.sendMail({
-      from: "support@gmail.com",
-      to: email,
-      subject: "Password Reset OTP",
-      text: `Your OTP is ${otp}`,
-    });
-
-    res.status(200).send({ message: "OTP sent to email", otp: otp });
-  } catch (err) {
-    res.status(500).send("Error sending OTP: " + err.message);
-  }
-});
-
-app.post("/reset-password", async (req, res) => {
-  try {
-    const { email, newPassword } = req.body;
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await User.updateOne({ email }, { password: hashedPassword });
-
-    res.status(200).send("Password reset successful");
-  } catch (err) {
-    res.status(500).send("Error resetting password: " + err.message);
-  }
-});
-
 // get testimonial
 app.get(`/testimonial`, async (req, res) => {
   try {
     const testimonial = await Testimonial.find();
     const testimonialVideo = await TestimonialVideo.find();
-    res
-      .status(200)
-      .json({ message: "testimonial send successfull", testimonial, testimonialVideo });
+    res.status(200).json({
+      message: "testimonial send successfull",
+      testimonial,
+      testimonialVideo,
+    });
   } catch (error) {
     return res
       .status(500)
@@ -440,6 +486,50 @@ app.post("/enroll", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
+  }
+});
+
+// get banner
+app.get(`/banner`, async (req, res) => {
+  try {
+    const banners = await Banner.find();
+    res.status(200).json({ message: "data fetch successfully", banners });
+  } catch (error) {
+    return res.status(500).json({ message: "error while fetching data" });
+  }
+});
+
+// get Beginner banner
+app.get(`/beginnerBanner`, async (req, res) => {
+  try {
+    const beginnerBanner = await BeginnerBanner.find();
+    res
+      .status(200)
+      .json({ message: "data fetch successfully", beginnerBanner });
+  } catch (error) {
+    return res.status(500).json({ message: "error while fetching data" });
+  }
+});
+
+// get intermediate banner
+app.get(`/intermediateBanner`, async (req, res) => {
+  try {
+    const intermediateBanner = await IntermediateBanner.find();
+    res
+      .status(200)
+      .json({ message: "data fetch successfully", intermediateBanner });
+  } catch (error) {
+    return res.status(500).json({ message: "error while fetching data" });
+  }
+});
+
+// get advance banner
+app.get(`/advanceBanner`, async (req, res) => {
+  try {
+    const advanceBanner = await AdvanceBanner.find();
+    res.status(200).json({ message: "data fetch successfully", advanceBanner });
+  } catch (error) {
+    return res.status(500).json({ message: "error while fetching data" });
   }
 });
 
@@ -630,7 +720,7 @@ app.post(`/admin/addTestimonialVideo`, async (req, res) => {
   try {
     const { name, video } = req.body;
 
-    if (!name  || !video) {
+    if (!name || !video) {
       return res.status(204).json({ message: "empty data received" });
     }
 
@@ -651,9 +741,10 @@ app.post(`/admin/addTestimonialVideo`, async (req, res) => {
 app.get(`/admin/testimonialVideo`, async (req, res) => {
   try {
     const testimonialVideo = await TestimonialVideo.find();
-    res
-      .status(200)
-      .json({ message: "testimonial data fetch successfull", testimonialVideo });
+    res.status(200).json({
+      message: "testimonial data fetch successfull",
+      testimonialVideo,
+    });
   } catch (error) {
     return res
       .status(500)
@@ -681,7 +772,7 @@ app.post(`/admin/addTestimonialImage`, async (req, res) => {
   try {
     const { name, image } = req.body;
 
-    if (!name  || !image) {
+    if (!name || !image) {
       return res.status(204).json({ message: "empty data received" });
     }
 
@@ -702,9 +793,10 @@ app.post(`/admin/addTestimonialImage`, async (req, res) => {
 app.get(`/admin/testimonialImage`, async (req, res) => {
   try {
     const testimonialImage = await TestimonialImage.find();
-    res
-      .status(200)
-      .json({ message: "testimonial data fetch successfull", testimonialImage });
+    res.status(200).json({
+      message: "testimonial data fetch successfull",
+      testimonialImage,
+    });
   } catch (error) {
     return res
       .status(500)
@@ -920,6 +1012,271 @@ app.put(`/admin/course/:id`, async (req, res) => {
   } catch (error) {
     console.error("Error updating Course:", error);
     res.status(500).json({ message: "Error updating Course", error });
+  }
+});
+
+// add banner
+app.post("/admin/addBanner", async (req, res) => {
+  try {
+    const { heading, description, image } = req.body;
+    console.log(heading, description, image, "data from body");
+    if (!heading || !description || !image) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+    const newBanner = new Banner({
+      heading,
+      description,
+      image,
+    });
+    await newBanner.save();
+    res.status(200).json({ message: "Banner added successfully", newBanner });
+  } catch (error) {
+    console.error("Error adding banner:", error);
+    res.status(500).json({ message: "Error adding banner" });
+  }
+});
+
+// get banner
+app.get(`/admin/banner`, async (req, res) => {
+  try {
+    const banners = await Banner.find();
+    res.status(200).json({ message: "data send successfully", banners });
+  } catch (error) {
+    return res.status(500).json({ message: "problem while sending data" });
+  }
+});
+
+// delete banner
+app.delete(`/admin/banner/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleteBanner = await Banner.findByIdAndDelete(id);
+    res
+      .status(200)
+      .json({ message: "banner delete successfully", deleteBanner });
+  } catch (error) {
+    return res.status(500).json({ message: "problem while deleting banner" });
+  }
+});
+
+// edit banner
+app.put(`/admin/banner/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { heading, description, image } = req.body;
+
+    const updatedBanner = await Banner.findByIdAndUpdate(
+      id,
+      { heading, description, image },
+      { new: true }
+    );
+
+    res.status(200).json({ message: "Banner updated", updatedBanner });
+  } catch (error) {
+    console.error("Error updating Banner:", error);
+    res.status(500).json({ message: "Error updating Banner", error });
+  }
+});
+
+// add Beginner banner
+app.post("/admin/addBeginnerBanner", async (req, res) => {
+  try {
+    const { heading, description, image } = req.body;
+    if (!heading || !description || !image) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+    const newBeginnerBanner = new BeginnerBanner({
+      heading,
+      description,
+      image,
+    });
+    await newBeginnerBanner.save();
+    res
+      .status(200)
+      .json({ message: "Banner added successfully", newBeginnerBanner });
+  } catch (error) {
+    console.error("Error adding banner:", error);
+    res.status(500).json({ message: "Error adding banner" });
+  }
+});
+
+// get Beginner banner
+app.get(`/admin/BeginnerBanner`, async (req, res) => {
+  try {
+    const beginnerBanner = await BeginnerBanner.find();
+    res.status(200).json({ message: "data send successfully", beginnerBanner });
+  } catch (error) {
+    return res.status(500).json({ message: "problem while sending data" });
+  }
+});
+
+// delete beginner banner
+app.delete(`/admin/BeginnerBanner/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleteBeginnerBanner = await BeginnerBanner.findByIdAndDelete(id);
+    res
+      .status(200)
+      .json({ message: "banner delete successfully", deleteBeginnerBanner });
+  } catch (error) {
+    return res.status(500).json({ message: "problem while deleting banner" });
+  }
+});
+
+// edit banner
+app.put(`/admin/BeginnerBanner/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { heading, description, image } = req.body;
+
+    const updatedBeginnerBanner = await BeginnerBanner.findByIdAndUpdate(
+      id,
+      { heading, description, image },
+      { new: true }
+    );
+
+    res.status(200).json({ message: "Banner updated", updatedBeginnerBanner });
+  } catch (error) {
+    console.error("Error updating Banner:", error);
+    res.status(500).json({ message: "Error updating Banner", error });
+  }
+});
+
+// add intermediate banner
+app.post("/admin/addIntermediateBanner", async (req, res) => {
+  try {
+    const { heading, description, image } = req.body;
+    if (!heading || !description || !image) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+    const newIntermediateBanner = new IntermediateBanner({
+      heading,
+      description,
+      image,
+    });
+    await newIntermediateBanner.save();
+    res
+      .status(200)
+      .json({ message: "Banner added successfully", newIntermediateBanner });
+  } catch (error) {
+    console.error("Error adding banner:", error);
+    res.status(500).json({ message: "Error adding banner" });
+  }
+});
+
+// get intermediate banner
+app.get(`/admin/IntermediateBanner`, async (req, res) => {
+  try {
+    const intermediateBanner = await IntermediateBanner.find();
+    res
+      .status(200)
+      .json({ message: "data send successfully", intermediateBanner });
+  } catch (error) {
+    return res.status(500).json({ message: "problem while sending data" });
+  }
+});
+
+// delete beginner banner
+app.delete(`/admin/IntermediateBanner/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleteIntermediateBanner = await IntermediateBanner.findByIdAndDelete(
+      id
+    );
+    res
+      .status(200)
+      .json({
+        message: "banner delete successfully",
+        deleteIntermediateBanner,
+      });
+  } catch (error) {
+    return res.status(500).json({ message: "problem while deleting banner" });
+  }
+});
+
+// edit banner
+app.put(`/admin/IntermediateBanner/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { heading, description, image } = req.body;
+
+    const updatedIntermediateBanner =
+      await IntermediateBanner.findByIdAndUpdate(
+        id,
+        { heading, description, image },
+        { new: true }
+      );
+
+    res
+      .status(200)
+      .json({ message: "Banner updated", updatedIntermediateBanner });
+  } catch (error) {
+    console.error("Error updating Banner:", error);
+    res.status(500).json({ message: "Error updating Banner", error });
+  }
+});
+
+// add advance banner
+app.post("/admin/addAdvanceBanner", async (req, res) => {
+  try {
+    const { heading, description, image } = req.body;
+    if (!heading || !description || !image) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+    const newAdvanceBanner = new AdvanceBanner({
+      heading,
+      description,
+      image,
+    });
+    await newAdvanceBanner.save();
+    res
+      .status(200)
+      .json({ message: "Banner added successfully", newAdvanceBanner });
+  } catch (error) {
+    console.error("Error adding banner:", error);
+    res.status(500).json({ message: "Error adding banner" });
+  }
+});
+
+// get advance banner
+app.get(`/admin/advanceBanner`, async (req, res) => {
+  try {
+    const advanceBanner = await AdvanceBanner.find();
+    res.status(200).json({ message: "data send successfully", advanceBanner });
+  } catch (error) {
+    return res.status(500).json({ message: "problem while sending data" });
+  }
+});
+
+// delete advance banner
+app.delete(`/admin/advanceBanner/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleteAdvanceBanner = await AdvanceBanner.findByIdAndDelete(id);
+    res
+      .status(200)
+      .json({ message: "banner delete successfully", deleteAdvanceBanner });
+  } catch (error) {
+    return res.status(500).json({ message: "problem while deleting banner" });
+  }
+});
+
+// edit advance banner
+app.put(`/admin/advanceBanner/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { heading, description, image } = req.body;
+
+    const updatedAdvanceBanner = await AdvanceBanner.findByIdAndUpdate(
+      id,
+      { heading, description, image },
+      { new: true }
+    );
+
+    res.status(200).json({ message: "Banner updated", updatedAdvanceBanner });
+  } catch (error) {
+    console.error("Error updating Banner:", error);
+    res.status(500).json({ message: "Error updating Banner", error });
   }
 });
 
