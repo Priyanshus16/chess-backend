@@ -281,6 +281,79 @@ const AdvanceBannerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const BeginnerBenefitsSchema = new mongoose.Schema(
+  {
+    heading: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+const IntermediateBenefitsSchema = new mongoose.Schema(
+  {
+    heading: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+const AdvanceBenefitsSchema = new mongoose.Schema(
+  {
+    heading: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+const StoreSchema = new mongoose.Schema({
+  heading: {
+    type: String,
+    required: true
+  },
+  description: {
+    type: String,
+    required: true
+  },
+  shortDescription:{
+    type: String,
+    required:true,
+  },
+  price: {
+    type: String,
+    required: true
+  },
+  category: {
+    type: String,
+    required: true
+  },
+  link: {
+    type: String,
+    required: true
+  },
+  image: {
+    type: String,
+    required: true
+  },
+},{timestamps:true})
+
 // <--------   Models  ---------->
 
 const User = mongoose.model("User", userSchema);
@@ -303,6 +376,16 @@ const IntermediateBanner = mongoose.model(
   IntermediateBannerSchema
 );
 const AdvanceBanner = mongoose.model("AdvanceBanner", AdvanceBannerSchema);
+const BeginnerBenefit = mongoose.model(
+  "BeginnerBenefit",
+  BeginnerBenefitsSchema
+);
+const IntermediateBenefit = mongoose.model(
+  "IntermediateBenefit",
+  IntermediateBenefitsSchema
+);
+const AdvanceBenefit = mongoose.model("AdvanceBenefit", AdvanceBenefitsSchema);
+const Store = mongoose.model("Store", StoreSchema);
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -318,7 +401,7 @@ app.post("/send-email", async (req, res) => {
 
   const mailOptions = {
     from: process.env.Nodemailer_Username,
-    to: "Masterchessclasses@gmail.com",
+    to: `priyanshu.soni1129@gmail.com`,
     subject: "New Demo Class Booking Request",
     text: `Name: ${name}\nEmail: ${email}\nContact: ${contact}\nCity: ${city}\nAge Group: ${ageGroup}\nPreferred Language: ${language}\nDevice: ${device}`,
   };
@@ -503,9 +586,14 @@ app.get(`/banner`, async (req, res) => {
 app.get(`/beginnerBanner`, async (req, res) => {
   try {
     const beginnerBanner = await BeginnerBanner.find();
+    const coachingCards = await BeginnerBenefit.find();
     res
       .status(200)
-      .json({ message: "data fetch successfully", beginnerBanner });
+      .json({
+        message: "data fetch successfully",
+        beginnerBanner,
+        coachingCards,
+      });
   } catch (error) {
     return res.status(500).json({ message: "error while fetching data" });
   }
@@ -515,9 +603,14 @@ app.get(`/beginnerBanner`, async (req, res) => {
 app.get(`/intermediateBanner`, async (req, res) => {
   try {
     const intermediateBanner = await IntermediateBanner.find();
+    const coachingCards = await IntermediateBenefit.find();
     res
       .status(200)
-      .json({ message: "data fetch successfully", intermediateBanner });
+      .json({
+        message: "data fetch successfully",
+        intermediateBanner,
+        coachingCards,
+      });
   } catch (error) {
     return res.status(500).json({ message: "error while fetching data" });
   }
@@ -527,11 +620,38 @@ app.get(`/intermediateBanner`, async (req, res) => {
 app.get(`/advanceBanner`, async (req, res) => {
   try {
     const advanceBanner = await AdvanceBanner.find();
-    res.status(200).json({ message: "data fetch successfully", advanceBanner });
+    const coachingCards = await AdvanceBenefit.find();
+    res
+      .status(200)
+      .json({
+        message: "data fetch successfully",
+        advanceBanner,
+        coachingCards,
+      });
   } catch (error) {
     return res.status(500).json({ message: "error while fetching data" });
   }
 });
+
+// get items in store
+app.get(`/chessStore`, async(req, res) => {
+  try {
+    const items = await Store.find();
+    res.status(200).json({message:'data send successfully', items});
+  } catch (error) {
+    res.status(500).json({message:'problem while sending data'});
+  }
+})
+
+// get store item
+app.get(`/store`, async(req, res) => {
+  try {
+    const items = await Store.find();
+    res.status(200).json({message:'data fetch successfully', items});
+  } catch (error) {
+    res.status(500).json({message:'problem while fetching data'});
+  }
+})
 
 // <------- ROUTES ADMIN PANEL -------->
 
@@ -1183,12 +1303,10 @@ app.delete(`/admin/IntermediateBanner/:id`, async (req, res) => {
     const deleteIntermediateBanner = await IntermediateBanner.findByIdAndDelete(
       id
     );
-    res
-      .status(200)
-      .json({
-        message: "banner delete successfully",
-        deleteIntermediateBanner,
-      });
+    res.status(200).json({
+      message: "banner delete successfully",
+      deleteIntermediateBanner,
+    });
   } catch (error) {
     return res.status(500).json({ message: "problem while deleting banner" });
   }
@@ -1279,6 +1397,241 @@ app.put(`/admin/advanceBanner/:id`, async (req, res) => {
     res.status(500).json({ message: "Error updating Banner", error });
   }
 });
+
+// add beginner benefit
+app.post(`/admin/addBeginnerBenefit`, async (req, res) => {
+  try {
+    const { heading, description } = req.body;
+    const newCard = new BeginnerBenefit({
+      heading,
+      description,
+    });
+    await newCard.save();
+    res.status(200).json({ message: "data send successfull", newCard });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "there was error while saving data", error });
+  }
+});
+
+// get beginner benefit
+app.get(`/admin/beginnerBenefit`, async (req, res) => {
+  try {
+    const beginnerCard = await BeginnerBenefit.find();
+    res.status(200).json({ message: "data send successfull", beginnerCard });
+  } catch (error) {
+    res.status(500).json({ message: "problem while sending data", error });
+  }
+});
+
+// delete beginner benefit
+app.delete(`/admin/beginnerBenefit/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleteBeginnerCard = await BeginnerBenefit.findByIdAndDelete(id);
+    res
+      .status(200)
+      .json({ message: "card delete successfully", deleteBeginnerCard });
+  } catch (error) {
+    res.status(500).json({ message: "error while deleting" });
+  }
+});
+
+// edit beginner benefit
+app.put(`/admin/beginnerBenefit/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { heading, description } = req.body;
+    const editBeginnerBenefit = await BeginnerBenefit.findByIdAndUpdate(
+      id,
+      { heading, description },
+      { new: true }
+    );
+    res
+      .status(200)
+      .json({ message: "card edit successfully", editBeginnerBenefit });
+  } catch (error) {
+    res.status(500).json({ message: "error while editing card" });
+  }
+});
+
+// add intermediate benefit
+app.post(`/admin/addIntermediateBenefit`, async (req, res) => {
+  try {
+    const { heading, description } = req.body;
+    const newCard = new IntermediateBenefit({
+      heading,
+      description,
+    });
+    await newCard.save();
+    res.status(200).json({ message: "data send successfull", newCard });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "there was error while saving data", error });
+  }
+});
+
+// get intermediate benefit
+app.get(`/admin/intermediateBenefit`, async (req, res) => {
+  try {
+    const intermediateCard = await IntermediateBenefit.find();
+    res
+      .status(200)
+      .json({ message: "data send successfull", intermediateCard });
+  } catch (error) {
+    res.status(500).json({ message: "problem while sending data", error });
+  }
+});
+
+// delete intermediate benefit
+app.delete(`/admin/intermediateBenefit/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleteIntermediateCard = await IntermediateBenefit.findByIdAndDelete(
+      id
+    );
+    res
+      .status(200)
+      .json({ message: "card delete successfully", deleteIntermediateCard });
+  } catch (error) {
+    res.status(500).json({ message: "error while deleting" });
+  }
+});
+
+// edit intermediate benefit
+app.put(`/admin/intermediateBenefit/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { heading, description } = req.body;
+    const editIntermediateBenefit = await IntermediateBenefit.findByIdAndUpdate(
+      id,
+      { heading, description },
+      { new: true }
+    );
+    res
+      .status(200)
+      .json({ message: "card edit successfully", editIntermediateBenefit });
+  } catch (error) {
+    res.status(500).json({ message: "error while editing card" });
+  }
+});
+
+// add advance benefit
+app.post(`/admin/addAdvanceBenefit`, async (req, res) => {
+  try {
+    const { heading, description } = req.body;
+    const newCard = new AdvanceBenefit({
+      heading,
+      description,
+    });
+    await newCard.save();
+    res.status(200).json({ message: "data send successfull", newCard });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "there was error while saving data", error });
+  }
+});
+
+// get advance benefit
+app.get(`/admin/advanceBenefit`, async (req, res) => {
+  try {
+    const advanceCard = await AdvanceBenefit.find();
+    res.status(200).json({ message: "data send successfull", advanceCard });
+  } catch (error) {
+    res.status(500).json({ message: "problem while sending data", error });
+  }
+});
+
+// delete advance benefit
+app.delete(`/admin/advanceBenefit/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleteAdvanceCard = await AdvanceBenefit.findByIdAndDelete(id);
+    res
+      .status(200)
+      .json({ message: "card delete successfully", deleteAdvanceCard });
+  } catch (error) {
+    res.status(500).json({ message: "error while deleting" });
+  }
+});
+
+// edit advance benefit
+app.put(`/admin/advanceBenefit/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { heading, description } = req.body;
+    const editAdvanceBenefit = await AdvanceBenefit.findByIdAndUpdate(
+      id,
+      { heading, description },
+      { new: true }
+    );
+    res
+      .status(200)
+      .json({ message: "card edit successfully", editAdvanceBenefit });
+  } catch (error) {
+    res.status(500).json({ message: "error while editing card" });
+  }
+});
+
+// add item in store
+app.post('/admin/addItem', async(req, res) => {
+  try {
+    const {heading, description, category, price, image, link, shortDescription } = req.body;
+    const newItem = new Store({
+      heading,
+      description,
+      price,
+      category,
+      link,
+      image,
+      shortDescription
+    })
+    await newItem.save();
+    res.status(200).json({message:'data save successfully', newItem});
+  } catch (error) {
+    res.status(500).json({message:'problem while saving data'});
+  }
+})
+
+// get item
+app.get(`/admin/store`, async(req, res) => {
+  try {
+    const item = await Store.find();
+    res.status(200).json({message:'data fetch successfully', item});
+  } catch (error) {
+    res.status(500).json({message:'there was problem while getting data'});
+  }
+})
+
+// delete item
+app.delete('/admin/store/:id', async(req, res) => {
+  try {
+    const {id} = req.params;
+    console.log(id)
+    const deleteItem = await Store.findByIdAndDelete(id);
+    res.status(200).json({message:'item delete successfull', deleteItem})
+  } catch (error) {
+    res.status(500).json({message:'problem while deleting item'});
+  } 
+})
+
+app.put(`/admin/store/:id`, async(req, res) => {
+  try {
+    const {id} = req.params;
+    const {heading, description, category, price,image,link,shortDescription } = req.body;
+    const editItem = await Store.findByIdAndUpdate(
+      id,
+      { heading, description, price, category, link, image,shortDescription },
+      { new: true }
+    );
+    res.status(200).json({message:'card edit successfully', editItem});
+  } catch (error) {
+    res.status(500).json({message:'error while editing card'});
+  }
+})
 
 app.listen(PORT, () => {
   console.log(`server is listening on ${PORT}`);
