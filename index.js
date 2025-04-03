@@ -435,7 +435,7 @@ app.post("/register", async (req, res) => {
       email,
       password: hashedPassword,
       name,
-      source: "website",
+      source: "user",
     });
     await newUser.save();
     res.status(200).send("User registered successfully");
@@ -568,6 +568,7 @@ app.post("/enroll", async (req, res) => {
       purchasedCourses: user.purchasedCourses,
     });
   } catch (error) {
+    console.log(error)
     res.status(500).json({ message: "Server error", error });
   }
 });
