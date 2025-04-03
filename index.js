@@ -401,7 +401,7 @@ app.post("/send-email", async (req, res) => {
 
   const mailOptions = {
     from: process.env.Nodemailer_Username,
-    to: `priyanshu.soni1129@gmail.com`,
+    to: `Masterchessclasses@gmail.com`,
     subject: "New Demo Class Booking Request",
     text: `Name: ${name}\nEmail: ${email}\nContact: ${contact}\nCity: ${city}\nAge Group: ${ageGroup}\nPreferred Language: ${language}\nDevice: ${device}`,
   };
