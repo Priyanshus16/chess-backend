@@ -5,6 +5,13 @@ const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 const app = express();
 app.use(cors());
@@ -70,6 +77,7 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
 
 // <------- Schema ADMIN_PANEL -------->
 
@@ -174,36 +182,28 @@ const courseSchema = new mongoose.Schema(
       required: true,
     },
     description: {
-      type: String,
-      required: true,
+      type: String
     },
     curricullum: {
-      type: [String],
-      required: true,
+      type: [String]
     },
     duration: {
-      type: String,
-      required: true,
+      type: String
     },
     price: {
-      type: String,
-      required: true,
+      type: String
     },
     image: {
-      type: String,
-      required: true,
+      type: String    
     },
     courseLevel: {
-      type: String,
-      required: true,
+      type: String
     },
     video: {
       type: String,
-      required: true,
     },
     videoName: {
-      type: String,
-      required: true,
+      type: String
     },
   },
   { timestamps: true }
@@ -353,6 +353,12 @@ const StoreSchema = new mongoose.Schema({
     required: true
   },
 },{timestamps:true})
+const courseVideoSchema = new mongoose.Schema({
+  courseId: { type: mongoose.Schema.Types.ObjectId, ref: "Course", required: true },
+  title: { type: String, required: true },
+  description: { type: String },
+  videoUrl: { type: String, required: true },
+}, { timestamps: true });
 
 // <--------   Models  ---------->
 
@@ -386,6 +392,7 @@ const IntermediateBenefit = mongoose.model(
 );
 const AdvanceBenefit = mongoose.model("AdvanceBenefit", AdvanceBenefitsSchema);
 const Store = mongoose.model("Store", StoreSchema);
+const CourseVideo = mongoose.model("CourseVideo", courseVideoSchema);
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -1109,9 +1116,9 @@ app.delete(`/admin/course/:id`, async (req, res) => {
   try {
     const { id } = req.params;
     const deleteCourse = await Course.findByIdAndDelete(id);
-    res
+    return res
       .status(200)
-      .status({ message: "course delete successfully", deleteCourse });
+      .json({ message: "course delete successfully", deleteCourse });
   } catch (error) {
     return res.status(500).json({ message: "problem while deleting course" });
   }
@@ -1136,6 +1143,71 @@ app.put(`/admin/course/:id`, async (req, res) => {
   }
 });
 
+app.post("/admin/course/video/:courseId", async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const { title, description, videoUrl } = req.body;
+
+    const video = new CourseVideo({
+      courseId,
+      title,
+      description,
+      videoUrl,
+    });
+
+    await video.save();
+    res.status(201).json({ message: "Video uploaded successfully", video });
+  } catch (err) {
+    console.error("Upload error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get all videos for a course
+app.get("/admin/course/video/:courseId", async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const videos = await CourseVideo.find({ courseId }).sort({ createdAt: -1 });
+    res.json({ videos });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+function extractCloudinaryPublicId(url) {
+  try {
+    const parts = url.split("/");
+    const fileName = parts[parts.length - 1]; // my_video.mp4
+    const publicId = fileName.substring(0, fileName.lastIndexOf(".")); // my_video
+    return parts[parts.length - 2] + "/" + publicId; // optional: include folder if used
+  } catch (err) {
+    console.error("Failed to extract Cloudinary public_id:", err);
+    return null;
+  }
+}
+
+// Delete a video
+app.delete("/admin/course/video/:courseId/:videoId", async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    const video = await CourseVideo.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ message: "Video not found" });
+    }
+    const videoUrl = video.videoUrl;
+    const publicId = extractCloudinaryPublicId(videoUrl);
+
+    // Delete from Cloudinary
+    if (publicId) {
+      await cloudinary.uploader.destroy(publicId, { resource_type: "video" });
+    }
+
+    await CourseVideo.findByIdAndDelete(videoId);
+    res.json({ message: "Video deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error:err.message});
+  }
+});
 // add banner
 app.post("/admin/addBanner", async (req, res) => {
   try {
