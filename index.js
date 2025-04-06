@@ -7,6 +7,9 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const cloudinary = require('cloudinary').v2;
 
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+// coudinary config
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -353,12 +356,32 @@ const StoreSchema = new mongoose.Schema({
     required: true
   },
 },{timestamps:true})
+
+// course video
 const courseVideoSchema = new mongoose.Schema({
   courseId: { type: mongoose.Schema.Types.ObjectId, ref: "Course", required: true },
   title: { type: String, required: true },
   description: { type: String },
   videoUrl: { type: String, required: true },
 }, { timestamps: true });
+
+// OTP schema
+const otpSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: true,
+  },
+  otp: {
+    type: String,
+    required: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    expires: 300, // ⏰ expires in 5 minutes
+  },
+});
+
 
 // <--------   Models  ---------->
 
@@ -393,6 +416,7 @@ const IntermediateBenefit = mongoose.model(
 const AdvanceBenefit = mongoose.model("AdvanceBenefit", AdvanceBenefitsSchema);
 const Store = mongoose.model("Store", StoreSchema);
 const CourseVideo = mongoose.model("CourseVideo", courseVideoSchema);
+const Otp = mongoose.model("Otp", otpSchema);
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -422,7 +446,143 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
+// <--------- Stripe -------------->
+
+app.post("/create-checkout-session", async (req, res) => {
+  const { course, userId } = req.body;
+
+  try {
+    const courseId = course[0]._id;
+
+    // Check if the course is already purchased
+    const user = await User.findById(userId);
+     if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (user.purchasedCourses.some((c) => c.courseId.toString() === courseId)) {
+      return res.status(400).json({ message: "Already enrolled in this course" });
+    }
+
+    const lineItems = course.map((product) => ({
+      price_data: {
+        currency: "inr",
+        product_data: {
+          name: product.title,
+          description: product.description,
+        },
+        unit_amount: Math.round(Number(product.price) * 100), 
+      },
+      quantity: 1,
+    }));
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: lineItems,
+      mode: "payment",
+      success_url: "http://localhost:3000/success",
+      cancel_url: "http://localhost:3000/cancel",
+    });
+
+    res.json({ id: session.id });
+  } catch (err) {
+    console.log(err)
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // <--------- ROUTES UI ---------->
+
+// Generate a random 6-digit OTP
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+// forgot password
+app.post("/forgot-password", async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    // Check if user exists
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res
+        .status(404)
+        .json({ message: "Email not found in our records." });
+    }
+
+    const otp = generateOTP();
+
+    const mailOptions = {
+      from: process.env.Nodemailer_Username,
+      to: email,
+      subject: "Password Reset OTP",
+      text: `Your OTP for password reset is: ${otp}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    // Remove old OTPs for this email
+    await Otp.deleteMany({ email });
+
+    // Save new OTP to DB
+    const newOtp = new Otp({ email, otp });
+    await newOtp.save();
+
+    res.status(200).json({ message: "OTP sent to email." });
+  } catch (err) {
+    res.status(500).json({ message: "Error sending OTP", error: err.message });
+  }
+});
+
+// verify-otp
+app.post('/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+
+  try {
+    const otpRecord = await Otp.findOne({ email });
+
+    if (!otpRecord) {
+      return res.status(400).json({ message: 'OTP expired or not found' });
+    }
+
+    if (otpRecord.otp !== otp) {
+      return res.status(400).json({ message: 'Invalid OTP' });
+    }
+
+    // OTP verified successfully, remove it
+    await Otp.deleteOne({ _id: otpRecord._id });
+
+    res.status(200).json({ message: 'OTP verified successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// change password
+app.post('/reset-password', async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  if (!email || !newPassword) {
+    return res.status(400).json({ message: 'Email and new password are required.' });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json('Password updated successfully.');
+  } catch (error) {
+    console.error('Reset Password Error:', error);
+    res.status(500).json({ message: 'Server error. Please try again later.' });
+  }
+});
+
 
 //  Register
 app.post("/register", async (req, res) => {
@@ -452,7 +612,7 @@ app.post("/register", async (req, res) => {
   }
 });
 
-//l ogin
+//login
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -641,15 +801,6 @@ app.get(`/advanceBanner`, async (req, res) => {
   }
 });
 
-// get items in store
-app.get(`/chessStore`, async(req, res) => {
-  try {
-    const items = await Store.find();
-    res.status(200).json({message:'data send successfully', items});
-  } catch (error) {
-    res.status(500).json({message:'problem while sending data'});
-  }
-})
 
 // get store item
 app.get(`/store`, async(req, res) => {
@@ -1212,7 +1363,6 @@ app.delete("/admin/course/video/:courseId/:videoId", async (req, res) => {
 app.post("/admin/addBanner", async (req, res) => {
   try {
     const { heading, description, image } = req.body;
-    console.log(heading, description, image, "data from body");
     if (!heading || !description || !image) {
       return res.status(400).json({ message: "All fields are required" });
     }
@@ -1683,7 +1833,6 @@ app.get(`/admin/store`, async(req, res) => {
 app.delete('/admin/store/:id', async(req, res) => {
   try {
     const {id} = req.params;
-    console.log(id)
     const deleteItem = await Store.findByIdAndDelete(id);
     res.status(200).json({message:'item delete successfull', deleteItem})
   } catch (error) {
