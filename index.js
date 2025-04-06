@@ -5,7 +5,7 @@ const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
-const cloudinary = require('cloudinary').v2;
+const cloudinary = require("cloudinary").v2;
 
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
@@ -13,7 +13,7 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 const app = express();
@@ -80,7 +80,6 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
 
 // <------- Schema ADMIN_PANEL -------->
 
@@ -185,28 +184,28 @@ const courseSchema = new mongoose.Schema(
       required: true,
     },
     description: {
-      type: String
+      type: String,
     },
     curricullum: {
-      type: [String]
+      type: [String],
     },
     duration: {
-      type: String
+      type: String,
     },
     price: {
-      type: String
+      type: String,
     },
     image: {
-      type: String    
+      type: String,
     },
     courseLevel: {
-      type: String
+      type: String,
     },
     video: {
       type: String,
     },
     videoName: {
-      type: String
+      type: String,
     },
   },
   { timestamps: true }
@@ -326,44 +325,54 @@ const AdvanceBenefitsSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const StoreSchema = new mongoose.Schema({
-  heading: {
-    type: String,
-    required: true
+const StoreSchema = new mongoose.Schema(
+  {
+    heading: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    shortDescription: {
+      type: String,
+      required: true,
+    },
+    price: {
+      type: String,
+      required: true,
+    },
+    category: {
+      type: String,
+      required: true,
+    },
+    link: {
+      type: String,
+      required: true,
+    },
+    image: {
+      type: String,
+      required: true,
+    },
   },
-  description: {
-    type: String,
-    required: true
-  },
-  shortDescription:{
-    type: String,
-    required:true,
-  },
-  price: {
-    type: String,
-    required: true
-  },
-  category: {
-    type: String,
-    required: true
-  },
-  link: {
-    type: String,
-    required: true
-  },
-  image: {
-    type: String,
-    required: true
-  },
-},{timestamps:true})
+  { timestamps: true }
+);
 
 // course video
-const courseVideoSchema = new mongoose.Schema({
-  courseId: { type: mongoose.Schema.Types.ObjectId, ref: "Course", required: true },
-  title: { type: String, required: true },
-  description: { type: String },
-  videoUrl: { type: String, required: true },
-}, { timestamps: true });
+const courseVideoSchema = new mongoose.Schema(
+  {
+    courseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      required: true,
+    },
+    title: { type: String, required: true },
+    description: { type: String },
+    videoUrl: { type: String, required: true },
+  },
+  { timestamps: true }
+);
 
 // OTP schema
 const otpSchema = new mongoose.Schema({
@@ -381,7 +390,6 @@ const otpSchema = new mongoose.Schema({
     expires: 300, // ⏰ expires in 5 minutes
   },
 });
-
 
 // <--------   Models  ---------->
 
@@ -456,10 +464,12 @@ app.post("/create-checkout-session", async (req, res) => {
 
     // Check if the course is already purchased
     const user = await User.findById(userId);
-     if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     if (user.purchasedCourses.some((c) => c.courseId.toString() === courseId)) {
-      return res.status(400).json({ message: "Already enrolled in this course" });
+      return res
+        .status(400)
+        .json({ message: "Already enrolled in this course" });
     }
 
     const lineItems = course.map((product) => ({
@@ -469,7 +479,7 @@ app.post("/create-checkout-session", async (req, res) => {
           name: product.title,
           description: product.description,
         },
-        unit_amount: Math.round(Number(product.price) * 100), 
+        unit_amount: Math.round(Number(product.price) * 100),
       },
       quantity: 1,
     }));
@@ -484,16 +494,16 @@ app.post("/create-checkout-session", async (req, res) => {
 
     res.json({ id: session.id });
   } catch (err) {
-    console.log(err)
+    console.log(err);
     res.status(500).json({ error: err.message });
   }
 });
 
-
 // <--------- ROUTES UI ---------->
 
 // Generate a random 6-digit OTP
-const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+const generateOTP = () =>
+  Math.floor(100000 + Math.random() * 900000).toString();
 
 // forgot password
 app.post("/forgot-password", async (req, res) => {
@@ -533,42 +543,44 @@ app.post("/forgot-password", async (req, res) => {
 });
 
 // verify-otp
-app.post('/verify-otp', async (req, res) => {
+app.post("/verify-otp", async (req, res) => {
   const { email, otp } = req.body;
 
   try {
     const otpRecord = await Otp.findOne({ email });
 
     if (!otpRecord) {
-      return res.status(400).json({ message: 'OTP expired or not found' });
+      return res.status(400).json({ message: "OTP expired or not found" });
     }
 
     if (otpRecord.otp !== otp) {
-      return res.status(400).json({ message: 'Invalid OTP' });
+      return res.status(400).json({ message: "Invalid OTP" });
     }
 
     // OTP verified successfully, remove it
     await Otp.deleteOne({ _id: otpRecord._id });
 
-    res.status(200).json({ message: 'OTP verified successfully' });
+    res.status(200).json({ message: "OTP verified successfully" });
   } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
 // change password
-app.post('/reset-password', async (req, res) => {
+app.post("/reset-password", async (req, res) => {
   const { email, newPassword } = req.body;
 
   if (!email || !newPassword) {
-    return res.status(400).json({ message: 'Email and new password are required.' });
+    return res
+      .status(400)
+      .json({ message: "Email and new password are required." });
   }
 
   try {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found.' });
+      return res.status(404).json({ message: "User not found." });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -576,13 +588,12 @@ app.post('/reset-password', async (req, res) => {
     user.password = hashedPassword;
     await user.save();
 
-    res.status(200).json('Password updated successfully.');
+    res.status(200).json("Password updated successfully.");
   } catch (error) {
-    console.error('Reset Password Error:', error);
-    res.status(500).json({ message: 'Server error. Please try again later.' });
+    console.error("Reset Password Error:", error);
+    res.status(500).json({ message: "Server error. Please try again later." });
   }
 });
-
 
 //  Register
 app.post("/register", async (req, res) => {
@@ -735,7 +746,7 @@ app.post("/enroll", async (req, res) => {
       purchasedCourses: user.purchasedCourses,
     });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     res.status(500).json({ message: "Server error", error });
   }
 });
@@ -755,13 +766,11 @@ app.get(`/beginnerBanner`, async (req, res) => {
   try {
     const beginnerBanner = await BeginnerBanner.find();
     const coachingCards = await BeginnerBenefit.find();
-    res
-      .status(200)
-      .json({
-        message: "data fetch successfully",
-        beginnerBanner,
-        coachingCards,
-      });
+    res.status(200).json({
+      message: "data fetch successfully",
+      beginnerBanner,
+      coachingCards,
+    });
   } catch (error) {
     return res.status(500).json({ message: "error while fetching data" });
   }
@@ -772,13 +781,11 @@ app.get(`/intermediateBanner`, async (req, res) => {
   try {
     const intermediateBanner = await IntermediateBanner.find();
     const coachingCards = await IntermediateBenefit.find();
-    res
-      .status(200)
-      .json({
-        message: "data fetch successfully",
-        intermediateBanner,
-        coachingCards,
-      });
+    res.status(200).json({
+      message: "data fetch successfully",
+      intermediateBanner,
+      coachingCards,
+    });
   } catch (error) {
     return res.status(500).json({ message: "error while fetching data" });
   }
@@ -789,28 +796,25 @@ app.get(`/advanceBanner`, async (req, res) => {
   try {
     const advanceBanner = await AdvanceBanner.find();
     const coachingCards = await AdvanceBenefit.find();
-    res
-      .status(200)
-      .json({
-        message: "data fetch successfully",
-        advanceBanner,
-        coachingCards,
-      });
+    res.status(200).json({
+      message: "data fetch successfully",
+      advanceBanner,
+      coachingCards,
+    });
   } catch (error) {
     return res.status(500).json({ message: "error while fetching data" });
   }
 });
 
-
 // get store item
-app.get(`/store`, async(req, res) => {
+app.get(`/store`, async (req, res) => {
   try {
     const items = await Store.find();
-    res.status(200).json({message:'data fetch successfully', items});
+    res.status(200).json({ message: "data fetch successfully", items });
   } catch (error) {
-    res.status(500).json({message:'problem while fetching data'});
+    res.status(500).json({ message: "problem while fetching data" });
   }
-})
+});
 
 // <------- ROUTES ADMIN PANEL -------->
 
@@ -1356,7 +1360,7 @@ app.delete("/admin/course/video/:courseId/:videoId", async (req, res) => {
     await CourseVideo.findByIdAndDelete(videoId);
     res.json({ message: "Video deleted successfully" });
   } catch (err) {
-    res.status(500).json({ message: "Server error", error:err.message});
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 // add banner
@@ -1800,9 +1804,17 @@ app.put(`/admin/advanceBenefit/:id`, async (req, res) => {
 });
 
 // add item in store
-app.post('/admin/addItem', async(req, res) => {
+app.post("/admin/addItem", async (req, res) => {
   try {
-    const {heading, description, category, price, image, link, shortDescription } = req.body;
+    const {
+      heading,
+      description,
+      category,
+      price,
+      image,
+      link,
+      shortDescription,
+    } = req.body;
     const newItem = new Store({
       heading,
       description,
@@ -1810,50 +1822,58 @@ app.post('/admin/addItem', async(req, res) => {
       category,
       link,
       image,
-      shortDescription
-    })
+      shortDescription,
+    });
     await newItem.save();
-    res.status(200).json({message:'data save successfully', newItem});
+    res.status(200).json({ message: "data save successfully", newItem });
   } catch (error) {
-    res.status(500).json({message:'problem while saving data'});
+    res.status(500).json({ message: "problem while saving data" });
   }
-})
+});
 
 // get item
-app.get(`/admin/store`, async(req, res) => {
+app.get(`/admin/store`, async (req, res) => {
   try {
     const item = await Store.find();
-    res.status(200).json({message:'data fetch successfully', item});
+    res.status(200).json({ message: "data fetch successfully", item });
   } catch (error) {
-    res.status(500).json({message:'there was problem while getting data'});
+    res.status(500).json({ message: "there was problem while getting data" });
   }
-})
+});
 
 // delete item
-app.delete('/admin/store/:id', async(req, res) => {
+app.delete("/admin/store/:id", async (req, res) => {
   try {
-    const {id} = req.params;
+    const { id } = req.params;
     const deleteItem = await Store.findByIdAndDelete(id);
-    res.status(200).json({message:'item delete successfull', deleteItem})
+    res.status(200).json({ message: "item delete successfull", deleteItem });
   } catch (error) {
-    res.status(500).json({message:'problem while deleting item'});
-  } 
-})
+    res.status(500).json({ message: "problem while deleting item" });
+  }
+});
 
-app.put(`/admin/store/:id`, async(req, res) => {
+app.put(`/admin/store/:id`, async (req, res) => {
   try {
-    const {id} = req.params;
-    const {heading, description, category, price,image,link,shortDescription } = req.body;
+    const { id } = req.params;
+    const {
+      heading,
+      description,
+      category,
+      price,
+      image,
+      link,
+      shortDescription,
+    } = req.body;
     const editItem = await Store.findByIdAndUpdate(
       id,
-      { heading, description, price, category, link, image,shortDescription },
+      { heading, description, price, category, link, image, shortDescription },
       { new: true }
     );
-    res.status(200).json({message:'card edit successfully', editItem});
+    res.status(200).json({ message: "card edit successfully", editItem });
   } catch (error) {
-    res.status(500).json({message:'error while editing card'});
+    res.status(500).json({ message: "error while editing card" });
   }
-})
+});
 
 app.listen(PORT, () => {
   console.log(`server is listening on ${PORT}`);
