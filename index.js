@@ -718,6 +718,32 @@ app.get(`/courses`, async (req, res) => {
   }
 });
 
+app.get("/admin/users/:userId/purchased-courses", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const user = await User.findById(userId).populate("purchasedCourses.courseId");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const purchasedCourses = user.purchasedCourses
+      .map((item) => {
+        // Ensure courseId is populated
+        return typeof item.courseId === "object" ? item.courseId : null;
+      })
+      .filter(Boolean); // remove nulls
+
+    return res.status(200).json({
+      message: "Purchased courses fetched successfully",
+      purchasedCourses,
+    });
+  } catch (error) {
+    console.error("Error fetching purchased courses:", error);
+    return res.status(500).json({ message: "Error while fetching purchased courses" });
+  }
+});
+
 // course enroll
 app.post("/enroll", async (req, res) => {
   try {
