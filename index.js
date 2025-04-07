@@ -59,15 +59,6 @@ const PurchasedCourseSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  // paymentStatus: {
-  //   type: String,
-  //   enum: ["Pending", "Success", "Failed"],
-  //   default: "Pending",
-  // },
-  // transactionId: {
-  //   type: String,
-  //   required: true,
-  // },
 });
 
 const userSchema = new mongoose.Schema(
@@ -391,6 +382,23 @@ const otpSchema = new mongoose.Schema({
   },
 });
 
+// contactDetail
+const ContactDetailSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: true,
+  },
+  phone: {
+    type: String,
+    required: true,
+  },
+  address: {
+    type: String,
+    required: true,
+  },
+
+},{timestamps: true});
+
 // <--------   Models  ---------->
 
 const User = mongoose.model("User", userSchema);
@@ -425,6 +433,7 @@ const AdvanceBenefit = mongoose.model("AdvanceBenefit", AdvanceBenefitsSchema);
 const Store = mongoose.model("Store", StoreSchema);
 const CourseVideo = mongoose.model("CourseVideo", courseVideoSchema);
 const Otp = mongoose.model("Otp", otpSchema);
+const ContactDetail = mongoose.model("ContactDetail", ContactDetailSchema);
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -837,6 +846,16 @@ app.get(`/store`, async (req, res) => {
   try {
     const items = await Store.find();
     res.status(200).json({ message: "data fetch successfully", items });
+  } catch (error) {
+    res.status(500).json({ message: "problem while fetching data" });
+  }
+});
+
+// get contact detail
+app.get(`/contactDetail`, async (req, res) => {
+  try {
+    const contact = await ContactDetail.find();
+    res.status(200).json({ message: "data fetch successfully", contact });
   } catch (error) {
     res.status(500).json({ message: "problem while fetching data" });
   }
@@ -1900,6 +1919,65 @@ app.put(`/admin/store/:id`, async (req, res) => {
     res.status(500).json({ message: "error while editing card" });
   }
 });
+
+// add contact detail
+app.post(`/admin/addContactDetail`, async (req, res) => {
+  try {
+    const { email, phone, address } = req.body;
+    const newContact = new ContactDetail({
+      email,
+      phone,
+      address,
+    });
+    await newContact.save();
+    res.status(200).json({ message: "data save successfully", newContact });
+  } catch (error) {
+    return res.status(500).json({ message: "problem while saving data" });
+  }
+});
+
+// get contact detail
+app.get(`/admin/contactDetail`, async (req, res) => {
+  try {
+    const contact = await ContactDetail.find();
+    res.status(200).json({ message: "data send successfully", contact });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "there is problem while sending data" });
+  }
+});
+
+// delete blog
+app.delete(`/admin/contactDetail/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleteContact = await ContactDetail.findByIdAndDelete(id);
+    res.status(200).json({ message: "blog delete successfull", deleteContact });
+  } catch (error) {
+    return res.status(500).json({ message: "error while deleting blog" });
+  }
+});
+
+// edit blog
+app.put(`/admin/contactDetail/:id`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, phone, address } = req.body;
+
+    const updatedContact = await ContactDetail.findByIdAndUpdate(
+      id,
+      { email, phone, address },
+      { new: true }
+    );
+
+    res.status(200).json({ message: "Blog updated", updatedContact });
+  } catch (error) {
+    console.error("Error updating Blog:", error);
+    res.status(500).json({ message: "Error updating Blog", error });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`server is listening on ${PORT}`);
